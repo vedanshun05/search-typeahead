@@ -1,0 +1,50 @@
+{
+  "name": "search-typeahead",
+  "description": "Search Typeahead system with distributed caching, consistent hashing, trending searches, batch writes, PostgreSQL, and Redis",
+  "repository": "https://github.com/anomalyco/HLD101",
+  "env": {
+    "DATABASE_URL": {
+      "description": "PostgreSQL connection string (e.g., postgresql://user:pass@host:5432/search_typeahead)",
+      "required": true
+    },
+    "REDIS_URL": {
+      "description": "Redis connection string (e.g., redis://host:6379)",
+      "required": true
+    },
+    "CACHE_TTL_SECONDS": {
+      "description": "Cache TTL in seconds (default: 300)",
+      "required": false,
+      "default": "300"
+    },
+    "CACHE_NODE_COUNT": {
+      "description": "Number of virtual cache nodes for consistent hashing (default: 3)",
+      "required": false,
+      "default": "3"
+    },
+    "CACHE_VIRTUAL_NODES": {
+      "description": "Virtual nodes per cache node (default: 150)",
+      "required": false,
+      "default": "150"
+    },
+    "BATCH_FLUSH_INTERVAL_MS": {
+      "description": "Batch write flush interval in milliseconds (default: 5000)",
+      "required": false,
+      "default": "5000"
+    },
+    "BATCH_BUFFER_SIZE": {
+      "description": "Max batch buffer size before flush (default: 100)",
+      "required": false,
+      "default": "100"
+    },
+    "TRENDING_ALPHA": {
+      "description": "Recency weight for trending (0-1, default: 0.3)",
+      "required": false,
+      "default": "0.3"
+    },
+    "TRENDING_DECAY": {
+      "description": "Trending score decay factor (default: 0.95)",
+      "required": false,
+      "default": "0.95"
+    }
+  }
+}
