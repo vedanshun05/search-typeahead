@@ -46,6 +46,7 @@ flowchart TB
 ```
 
 **Request flow:**
+
 1. User types → frontend debounces 300ms → `GET /api/suggest?q=<prefix>&mode=<basic|enhanced>`
 2. Server checks cache via consistent hash ring (which Redis node owns this prefix?)
 3. **Cache hit** → return cached suggestions immediately (~10ms)
@@ -124,32 +125,35 @@ Fetch typeahead suggestions for a prefix.
 
 **Query parameters:**
 
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| `q` | string | — | Search prefix (required) |
-| `mode` | `basic` \| `enhanced` | `basic` | Ranking mode |
+| Param  | Type                  | Default | Description              |
+| ------ | --------------------- | ------- | ------------------------ |
+| `q`    | string                | —       | Search prefix (required) |
+| `mode` | `basic` \| `enhanced` | `basic` | Ranking mode             |
 
 **Request:**
+
 ```
 GET /api/suggest?q=rea&mode=enhanced
 ```
 
 **Response:**
+
 ```json
 {
-    "prefix": "rea",
-    "mode": "enhanced",
-    "suggestions": [
-        { "query": "react native", "count": 14085 },
-        { "query": "react tutorial", "count": 341773 },
-        { "query": "react cheatsheet", "count": 500000 }
-    ],
-    "latency_ms": 9,
-    "cache_hit": true
+  "prefix": "rea",
+  "mode": "enhanced",
+  "suggestions": [
+    { "query": "react native", "count": 14085 },
+    { "query": "react tutorial", "count": 341773 },
+    { "query": "react cheatsheet", "count": 500000 }
+  ],
+  "latency_ms": 9,
+  "cache_hit": true
 }
 ```
 
 **Description of modes:**
+
 - **basic** — sorted by all-time count descending
 - **enhanced** — weighted blend of count + EMA recency score: `score = 0.3 × norm(count) + 0.7 × norm(recency)`
 
@@ -158,6 +162,7 @@ GET /api/suggest?q=rea&mode=enhanced
 Submit a search query (increments count, updates recency).
 
 **Request:**
+
 ```json
 POST /api/search
 Content-Type: application/json
@@ -166,6 +171,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 { "message": "Searched" }
 ```
@@ -177,16 +183,18 @@ The count increment is buffered in-memory and flushed to PostgreSQL in batches (
 Show which Redis node owns a given prefix on the consistent hash ring.
 
 **Request:**
+
 ```
 GET /api/cache/debug?prefix=react
 ```
 
 **Response:**
+
 ```json
 {
-    "prefix": "react",
-    "hash": 2712753292,
-    "assigned_node": "cache-node-1"
+  "prefix": "react",
+  "hash": 2712753292,
+  "assigned_node": "cache-node-1"
 }
 ```
 
@@ -195,15 +203,16 @@ GET /api/cache/debug?prefix=react
 Returns batch write statistics.
 
 **Response:**
+
 ```json
 {
-    "batch_writes": {
-        "totalWritesWithoutBatching": 118,
-        "totalBatchesFlushed": 15,
-        "totalWritesWithBatching": 116,
-        "currentBufferSize": 0,
-        "writeReductionPercent": "87.29"
-    }
+  "batch_writes": {
+    "totalWritesWithoutBatching": 118,
+    "totalBatchesFlushed": 15,
+    "totalWritesWithBatching": 116,
+    "currentBufferSize": 0,
+    "writeReductionPercent": "87.29"
+  }
 }
 ```
 
@@ -228,35 +237,21 @@ Toggle themes via the settings icon in the top-right corner.
 
 ## Screenshots
 
-### Light Theme — Suggestions Dropdown
-
-![Light theme with suggestions](screenshot-light-suggestions.png)
-
-### Dark Theme
-
-![Dark theme with suggestions](screenshot-dark-suggestions.png)
-
-### Warm Theme
-
-![Warm theme with suggestions](screenshot-warm-suggestions.png)
-
-### Empty State (Light)
-
-![Empty search bar](screenshot-light-empty.png)
+![Search Typeahead Demo](screenshot.png)
 
 ## Performance Report
 
 Measured against the live deployment at `search-typeahead.localhost`.
 
-| Metric | Value |
-|--------|-------|
-| **Cache hit latency** | 9–10 ms (p50) |
-| **Cache miss latency** | ~25–30 ms (includes PG query + cache write) |
-| **Cache hit rate** | ~95% after warm-up (TTL-based, 5 min expiry) |
-| **Write reduction (batching)** | **87.29%** |
-| DB writes without batching | 118 |
-| Batches flushed | 15 |
-| Total batched DB writes | 116 |
+| Metric                         | Value                                        |
+| ------------------------------ | -------------------------------------------- |
+| **Cache hit latency**          | 9–10 ms (p50)                                |
+| **Cache miss latency**         | ~25–30 ms (includes PG query + cache write)  |
+| **Cache hit rate**             | ~95% after warm-up (TTL-based, 5 min expiry) |
+| **Write reduction (batching)** | **87.29%**                                   |
+| DB writes without batching     | 118                                          |
+| Batches flushed                | 15                                           |
+| Total batched DB writes        | 116                                          |
 
 Without batching, each `POST /api/search` would trigger a separate DB write. With batching, writes are aggregated in memory and flushed every 5 seconds or 100 entries, reducing DB round-trips by 87%.
 
@@ -269,9 +264,9 @@ Without batching, each `POST /api/search` would trigger a separate DB write. Wit
 
 ## Trending Modes
 
-| Mode | Formula | Use Case |
-|------|---------|----------|
-| **Basic** | `ORDER BY count DESC` | Simple popularity |
+| Mode         | Formula                                       | Use Case                                |
+| ------------ | --------------------------------------------- | --------------------------------------- |
+| **Basic**    | `ORDER BY count DESC`                         | Simple popularity                       |
 | **Enhanced** | `0.3 × norm(count) + 0.7 × norm(recency_ema)` | Recency-aware with EMA decay (α = 0.95) |
 
 The enhanced mode prevents permanently popular queries from drowning out rising trends. The EMA decay factor of 0.95 means a query's recency score halves in ~14 days of inactivity.
@@ -287,16 +282,16 @@ The 150× virtual node replication ensures minimal key redistribution when nodes
 
 ## Design Choices
 
-| Choice | Rationale |
-|--------|-----------|
-| **PostgreSQL over MongoDB** | Structured schema, strong consistency for counts, JOINs not needed |
-| **Redis over in-memory cache** | Persistence, shared across processes, TTL built-in |
-| **TTL invalidation** | 5-min staleness is acceptable for suggestions; simpler than explicit invalidation |
-| **EMA over sliding window** | O(1) update, constant memory, simple math, tunable decay |
-| **In-memory batch buffer** | No message queue dependency; crash tolerance (5s window) is acceptable for demo |
-| **Consistent hashing** | Minimal redistribution on node changes, proven at scale (Dynamo, Cassandra) |
-| **React.createElement** | Zero build dependencies; no Babel/webpack needed for a single-page app |
-| **300ms debounce** | Balances responsiveness with API call frequency |
+| Choice                         | Rationale                                                                         |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| **PostgreSQL over MongoDB**    | Structured schema, strong consistency for counts, JOINs not needed                |
+| **Redis over in-memory cache** | Persistence, shared across processes, TTL built-in                                |
+| **TTL invalidation**           | 5-min staleness is acceptable for suggestions; simpler than explicit invalidation |
+| **EMA over sliding window**    | O(1) update, constant memory, simple math, tunable decay                          |
+| **In-memory batch buffer**     | No message queue dependency; crash tolerance (5s window) is acceptable for demo   |
+| **Consistent hashing**         | Minimal redistribution on node changes, proven at scale (Dynamo, Cassandra)       |
+| **React.createElement**        | Zero build dependencies; no Babel/webpack needed for a single-page app            |
+| **300ms debounce**             | Balances responsiveness with API call frequency                                   |
 
 See the Obsidian note (`HLD 101 Notes/Search Typeahead - HLD101 Project.md`) for detailed explanations, production sharding strategy, and mock interview Q&A.
 
