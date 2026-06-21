@@ -3,5 +3,4 @@ dist/
 .env
 *.log
 dataset/queries.tsv
-screenshot-*.png
 scripts/take-screenshots.mjs
