@@ -80,7 +80,6 @@ User submits search → POST /api/search {query}
 
 The system uses the **AOL Query Log Dataset** — a collection of ~36 million search queries from ~650,000 users over a 3-month period (2006). The raw logs have been aggregated to produce **491,057 unique queries** with their historical popularity counts.
 
-- **Repository reference:** [akshat-code21/typeahead_assignment](https://github.com/akshat-code21/typeahead_assignment)
 - **File location:** `dataset/queries.tsv`
 - **Format:** Tab-separated values: `query<TAB>count`
 - **Size:** ~12MB (491,057 rows)
@@ -245,7 +244,7 @@ Used by Docker/Once for health probes.
 - *Latency:* The first suggest request after a search pays the DB query penalty (~25–30ms) instead of a cache hit (~10ms). For subsequent requests, the cache is repopulated.
 - *Implementation complexity:* ~15 lines of code — compute all prefixes up to 20 characters, delete each key for both basic and enhanced modes. Fire-and-forget to avoid blocking the search response.
 
-This design choice aligns with the reference implementation by [akshat-code21](https://github.com/akshat-code21/typeahead_assignment).
+This design choice provides immediate freshness — the next suggest request after a search hits the database and repopulates the cache.
 
 ### 3. TTL-Based Cache Expiry
 
