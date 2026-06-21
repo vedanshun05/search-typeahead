@@ -55,6 +55,10 @@ router.post('/search', async (req: Request, res: Response) => {
     batchWriter.increment(normalized);
     await updateRecency(normalized);
 
+    cacheManager.invalidateAllPrefixes(normalized).catch((err) => {
+      console.error('[Search] Cache invalidation error:', err);
+    });
+
     console.log(`[Search] Submitted: "${normalized}"`);
 
     res.json({ message: 'Searched' });
@@ -66,7 +70,7 @@ router.post('/search', async (req: Request, res: Response) => {
 
 router.get('/cache/debug', async (req: Request, res: Response) => {
   const prefix = (req.query.prefix as string) || '';
-  const mode = (req.query.mode as string) || undefined;
+  const mode = (req.query.mode as string) || 'enhanced';
 
   if (!prefix) {
     res.status(400).json({ error: 'Missing "prefix" query parameter' });

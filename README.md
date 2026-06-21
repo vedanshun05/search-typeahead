@@ -51,7 +51,7 @@ flowchart TB
 2. Server checks cache via consistent hash ring (which Redis node owns this prefix?)
 3. **Cache hit** → return cached suggestions immediately (~10ms)
 4. **Cache miss** → query PostgreSQL (`ILIKE` prefix match, sorted by score), cache result with TTL, return
-5. User submits a search → `POST /api/search` → query stored in in-memory batch buffer
+5. User submits a search → `POST /api/search` → query stored in in-memory batch buffer, all cached prefixes immediately invalidated from Redis
 6. Buffer flushes every 5s or 100 entries → aggregated `INSERT ... ON CONFLICT DO UPDATE` to PostgreSQL
 
 ## Prerequisites

@@ -167,7 +167,7 @@ curl -s -X POST http://search-typeahead.localhost/api/search \
 }
 ```
 
-The count increment is buffered in memory and flushed to PostgreSQL in batches (every 5 seconds or 100 entries).
+The count increment is buffered in memory and flushed to PostgreSQL in batches (every 5 seconds or 100 entries). On submission, all cached prefixes for the query are immediately invalidated from Redis — the next suggest request will fetch fresh data from PostgreSQL.
 
 ### 3. Cache Debug API
 
@@ -236,16 +236,26 @@ Used by Docker/Once for health probes.
 - *Distribution:* 450 virtual ring positions ensure keys are uniformly distributed across nodes, preventing hot spots.
 - *Resiliency:* If a cache node goes down, only ~33% of keys are rerouted. The cache stampede is contained.
 
-### 2. TTL-Based Cache Invalidation
+### 2. Immediate Cache Invalidation
 
-**Choice:** Each cached suggestion expires after 300 seconds (5 minutes). No explicit invalidation on search submission.
+**Choice:** On search submission, ALL prefix cache keys derived from the query are deleted from Redis. E.g., searching "google" deletes `suggest:basic:g`, `suggest:basic:go`, ..., `suggest:enhanced:google` across both ranking modes. Each key is routed through the consistent hash ring to the owning Redis node and removed immediately.
 
 **Trade-off:**
-- *Freshness:* Suggestions may be up to 5 minutes stale. For typeahead, this is acceptable — popularity shifts slowly.
-- *Simplicity:* Zero invalidation logic needed. Redis handles expiry automatically via active + lazy expiry.
-- *Alternative rejected:* The reference implementation invalidates all prefix keys on every search (e.g., searching "google" deletes `g`, `go`, `goo`, `goog`, `googl`, `google`). This guarantees freshness but increases cache misses and DB load.
+- *Freshness:* The next suggest request for any prefix of "google" experiences a cache miss, queries PostgreSQL, and caches the updated count — guaranteeing instant reflection of popularity changes.
+- *Latency:* The first suggest request after a search pays the DB query penalty (~25–30ms) instead of a cache hit (~10ms). For subsequent requests, the cache is repopulated.
+- *Implementation complexity:* ~15 lines of code — compute all prefixes up to 20 characters, delete each key for both basic and enhanced modes. Fire-and-forget to avoid blocking the search response.
 
-### 3. EMA-Based Recency Scoring (Enhanced Mode)
+This design choice aligns with the reference implementation by [akshat-code21](https://github.com/akshat-code21/typeahead_assignment).
+
+### 3. TTL-Based Cache Expiry
+
+**Choice:** Each cached suggestion is set with `EXPIRE` at 300 seconds. Redis handles automatic key eviction via active + lazy expiry.
+
+**Trade-off:**
+- *Safety net:* If no search is submitted for a prefix, its cache entry eventually expires and refreshes from the database.
+- *Simplicity:* Zero application-level eviction logic. Redis manages memory reclamation natively.
+
+### 4. EMA-Based Recency Scoring (Enhanced Mode)
 
 **Choice:** Exponential Moving Average formula for recency-aware trending:
 ```
@@ -258,7 +268,7 @@ where α = 0.3 and EMA decay factor = 0.95.
 - *Memory:* Only stores one `recent_score` float per query — no need to maintain 60-minute event deques.
 - *Decay:* With decay factor 0.95, a query's recency contribution halves every ~14 days of inactivity — permanent over-ranking is prevented.
 
-### 4. In-Memory Batch Write Buffer
+### 5. In-Memory Batch Write Buffer
 
 **Choice:** `Map<string, number>` buffer that accumulates count deltas and flushes every 5 seconds or 100 entries.
 
@@ -267,7 +277,7 @@ where α = 0.3 and EMA decay factor = 0.95.
 - *Crash tolerance:* Up to 5 seconds of search data could be lost on crash. Acceptable for this assignment; production would use a WAL or message queue (Kafka/RabbitMQ).
 - *Simplicity:* No external message queue dependency — the buffer is self-contained within the application process.
 
-### 5. PostgreSQL over Dedicated Search Engine
+### 6. PostgreSQL over Dedicated Search Engine
 
 **Choice:** PostgreSQL with B-tree + `text_pattern_ops` index for prefix matching.
 
@@ -276,7 +286,7 @@ where α = 0.3 and EMA decay factor = 0.95.
 - *Maintenance:* Zero additional infrastructure. PostgreSQL is already running as the primary database.
 - *Indexing:* The `text_pattern_ops` index enables efficient `ILIKE 'prefix%'` queries without full table scans.
 
-### 6. Node.js + Express (TypeScript) over Spring Boot
+### 7. Node.js + Express (TypeScript) over Spring Boot
 
 **Choice:** TypeScript backend instead of Java/Spring Boot.
 
@@ -285,7 +295,7 @@ where α = 0.3 and EMA decay factor = 0.95.
 - *Memory:* ~50MB RSS vs 200MB+ for Spring Boot.
 - *Concurrency:* Node's event loop is well-suited for I/O-bound workloads (cache lookups, DB queries, HTTP serving).
 
-### 7. React.createElement Over Build Tooling
+### 8. React.createElement Over Build Tooling
 
 **Choice:** Vanilla React using `React.createElement()` in a single HTML file — no Babel, Webpack, or Vite.
 
@@ -294,7 +304,7 @@ where α = 0.3 and EMA decay factor = 0.95.
 - *JSX:* Cannot use JSX syntax, but for a component of this size, `createElement` calls are manageable.
 - *Developer experience:* No hot reload or TypeScript on the frontend, but the backend TypeScript compilation provides sufficient guardrails.
 
-### 8. Teal + Warm Neutrals Color Palette
+### 9. Teal + Warm Neutrals Color Palette
 
 **Choice:** Teal accent (`#0d9488`) with warm background (`#fafaf9`) based on 2026 design trends.
 

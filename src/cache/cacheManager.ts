@@ -73,6 +73,27 @@ export class CacheManager {
     await redis.del(key);
   }
 
+  async invalidateAllPrefixes(query: string): Promise<void> {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) return;
+
+    const maxLen = Math.min(trimmed.length, 20);
+    const modes = ['basic', 'enhanced'];
+    const promises: Promise<any>[] = [];
+
+    for (let i = 1; i <= maxLen; i++) {
+      const prefix = trimmed.substring(0, i);
+      for (const mode of modes) {
+        const key = this.cacheKey(prefix, mode);
+        const { node: nodeName } = this.hashRing.getNodeWithPosition(key);
+        const redis = this.getRedis(nodeName);
+        promises.push(redis.del(key));
+      }
+    }
+
+    await Promise.all(promises);
+  }
+
   logRouting(prefix: string, mode?: string): void {
     const key = this.cacheKey(prefix, mode);
     const { node, position } = this.hashRing.getNodeWithPosition(key);
