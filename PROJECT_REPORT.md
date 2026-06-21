@@ -8,38 +8,7 @@ A high-performance typeahead suggestion system with distributed caching via cons
 
 ### Architecture Diagram
 
-```mermaid
-flowchart TB
-    subgraph Frontend
-        B[React SPA<br/>public/index.html]
-    end
-    subgraph Backend
-        S[Express Server<br/>src/index.ts]
-        API[API Routes<br/>src/routes/api.ts]
-        SUGG[Trending Engine<br/>src/trending/suggestions.ts]
-        BATCH[Batch Writer<br/>src/batch/batchWriter.ts]
-        CACHE[Cache Manager<br/>src/cache/cacheManager.ts]
-        CH[Consistent Hash Ring<br/>src/cache/consistentHash.ts]
-    end
-    subgraph Storage
-        PG[PostgreSQL<br/>queries + query_recency]
-        R1[Redis Node 0]
-        R2[Redis Node 1]
-        R3[Redis Node 2]
-    end
-
-    B -- "GET /api/suggest?q=..." --> API
-    B -- "POST /api/search" --> API
-    API --> SUGG
-    API --> BATCH
-    API --> CACHE
-    CACHE --> CH
-    CH --> R1
-    CH --> R2
-    CH --> R3
-    SUGG --> PG
-    BATCH --> PG
-```
+![Architecture Diagram](architecture.png)
 
 ### Component Details
 
