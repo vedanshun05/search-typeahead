@@ -93,13 +93,11 @@ npm run migrate
 
 Creates `queries`, `query_recency`, and `performance_metrics` tables.
 
-### 5. Generate dataset
+### 5. Dataset
 
-```bash
-npm run generate-data
-```
+The system uses the **AOL Query Log Dataset** — ~491,000 unique historical search queries from the AOL 2006 release, pre-processed with aggregated counts.
 
-Generates 500,000 unique queries with power-law distribution in `dataset/queries.tsv`.
+Dataset file: `dataset/queries.tsv` (format: `query<TAB>count`)
 
 ### 6. Ingest the dataset
 
@@ -245,20 +243,21 @@ Measured against the live deployment at `search-typeahead.localhost`.
 
 | Metric                         | Value                                        |
 | ------------------------------ | -------------------------------------------- |
-| **Cache hit latency**          | 9–10 ms (p50)                                |
+| **Cache hit latency**          | 7–12 ms (p50)                                |
 | **Cache miss latency**         | ~25–30 ms (includes PG query + cache write)  |
 | **Cache hit rate**             | ~95% after warm-up (TTL-based, 5 min expiry) |
-| **Write reduction (batching)** | **87.29%**                                   |
-| DB writes without batching     | 118                                          |
-| Batches flushed                | 15                                           |
-| Total batched DB writes        | 116                                          |
+| **Write reduction (batching)** | **91.96%**                                   |
+| DB writes without batching     | 224                                          |
+| Batches flushed                | 18                                           |
+| Total batched DB writes        | 222                                          |
 
-Without batching, each `POST /api/search` would trigger a separate DB write. With batching, writes are aggregated in memory and flushed every 5 seconds or 100 entries, reducing DB round-trips by 87%.
+Without batching, each `POST /api/search` would trigger a separate DB write. With batching, writes are aggregated in memory and flushed every 5 seconds or 100 entries, reducing DB round-trips by 91.96%.
 
 ### Benchmark methodology
 
-- 18 distinct prefixes queried to warm the cache
-- 180 search submissions sent in rapid succession
+- Dataset: 491,057 AOL queries in PostgreSQL
+- 16 distinct prefixes queried to warm the cache
+- 105 search submissions sent in rapid succession
 - Latency measured from the client side via `curl` + nanosecond timestamps
 - Cache hit/miss reported per-request in the API response body
 
@@ -326,7 +325,7 @@ Requires the app container to be on the same Docker network as PG/Redis.
 
 ```
 search-typeahead/
-├── dataset/queries.tsv          # Generated dataset (500k queries)
+├── dataset/queries.tsv          # AOL query log dataset (491k queries)
 ├── scripts/generate-data.ts     # Dataset generator
 ├── src/
 │   ├── index.ts                 # Express entry point + /up healthcheck

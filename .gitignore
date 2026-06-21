@@ -2,5 +2,4 @@ node_modules/
 dist/
 .env
 *.log
-dataset/queries.tsv
-scripts/take-screenshots.mjs
+scripts/
